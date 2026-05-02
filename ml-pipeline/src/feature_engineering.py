@@ -12,9 +12,10 @@ class BaseFeatureExtractor(ABC):
     단일 책임 원칙(SRP) 및 개방-폐쇄 원칙(OCP)을 준수하는 피처 추출기 추상 기본 클래스입니다.
     모든 피처 추출기는 이 클래스를 상속받아 `extract` 메서드를 구현해야 합니다.
     """
-    def __init__(self, config: Dict[str, Any], safe_region_name: str, raw_dir: Path):
+    def __init__(self, config: Dict[str, Any], region: str, raw_dir: Path):
         self.config = config
-        self.safe_region_name = safe_region_name
+        self.region = region
+        self.safe_region_name = region.lower().replace(" ", "_").replace(",", "")
         self.raw_dir = raw_dir
         self.BASE_CRS = config['spatial']['base_crs']
         self.PROJ_CRS = config['spatial']['projected_crs']
@@ -49,8 +50,22 @@ class POIFeatureExtractor(BaseFeatureExtractor):
         input_filename = f"poi_{self.safe_region_name}_raw.csv"
         input_path = self.raw_dir / input_filename
         
+        # [Fallback 로직] 동/구 단위 파일이 없으면 상위 행정구역(시/도) 파일을 탐색하여 활용합니다.
         if not input_path.exists():
-            raise FileNotFoundError(f"🚨 원본 POI 데이터를 찾을 수 없습니다: {input_path.name}")
+            parts = [p.strip() for p in self.region.split(',')]
+            if len(parts) > 1:
+                parent_region = ", ".join(parts[1:])
+                parent_safe_name = parent_region.lower().replace(" ", "_").replace(",", "")
+                parent_filename = f"poi_{parent_safe_name}_raw.csv"
+                parent_path = self.raw_dir / parent_filename
+                
+                if parent_path.exists():
+                    print(f"🔄 지역 전용 POI 파일이 없어, 상위 행정구역 데이터({parent_filename})로 대체(Fallback)합니다.")
+                    input_filename = parent_filename
+                    input_path = parent_path
+                    
+        if not input_path.exists():
+            raise FileNotFoundError(f"🚨 원본 POI 데이터를 찾을 수 없습니다: {input_filename} (상위 지역 파일도 없음)")
             
         t0 = time.time()
         print(f"🏢 원본 POI 데이터 로드 중: {input_filename}...")
@@ -136,7 +151,7 @@ class FeatureOrchestrator:
             
         # 1. 대상 Grid 로드 (예외 처리 포함)
         grid_filename = f"grid_{self.safe_region_name}_{self.grid_size}m_buf{self.buffer_size}m.gpkg"
-        features_filename = f"features_{self.safe_region_name}_{self.grid_size}m.gpkg"
+        features_filename = f"features_{self.safe_region_name}_{self.grid_size}m_buf{self.buffer_size}m.gpkg"
         target_path = self.processed_dir / features_filename
         
         if not target_path.exists():
@@ -157,7 +172,7 @@ class FeatureOrchestrator:
 
         # 2. Extractor 객체 생성 및 연산 위임 (Strategy Pattern)
         extractor_class = self.extractor_map[feature_type]
-        extractor = extractor_class(self.config, self.safe_region_name, self.raw_dir)
+        extractor = extractor_class(self.config, self.region, self.raw_dir)
         grid_masked = extractor.extract(grid_masked)
 
         # 3. [Rule 4 준수] 결과물 덮어쓰기 (GeoPackage 포맷 유지)
