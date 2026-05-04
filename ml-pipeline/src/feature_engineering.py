@@ -4,6 +4,7 @@ import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Point
 from pathlib import Path
+from src.utils import get_safe_region_name, load_config, get_data_dirs, get_standard_filename, ensure_crs, Timer
 from abc import ABC, abstractmethod
 from typing import Dict, Any
 
@@ -15,7 +16,7 @@ class BaseFeatureExtractor(ABC):
     def __init__(self, config: Dict[str, Any], region: str, raw_dir: Path):
         self.config = config
         self.region = region
-        self.safe_region_name = region.lower().replace(" ", "_").replace(",", "")
+        self.safe_region_name = get_safe_region_name(region)
         self.raw_dir = raw_dir
         self.BASE_CRS = config['spatial']['base_crs']
         self.PROJ_CRS = config['spatial']['projected_crs']
@@ -34,6 +35,8 @@ class POIFeatureExtractor(BaseFeatureExtractor):
     특정 반경 내 업소 개수를 산출하여 Grid에 병합(Spatial Join)하는 추출기.
     (근거: core_papers.md - 제인 제이콥스의 'Eyes on the Street' 효과 반영)
     """
+    
+    BUFFER_RADII = [30, 50, 100]
     
     @staticmethod
     def _categorize_poi(row) -> str:
@@ -55,7 +58,7 @@ class POIFeatureExtractor(BaseFeatureExtractor):
             parts = [p.strip() for p in self.region.split(',')]
             if len(parts) > 1:
                 parent_region = ", ".join(parts[1:])
-                parent_safe_name = parent_region.lower().replace(" ", "_").replace(",", "")
+                parent_safe_name = get_safe_region_name(parent_region)
                 parent_filename = f"poi_{parent_safe_name}_raw.csv"
                 parent_path = self.raw_dir / parent_filename
                 
@@ -76,7 +79,7 @@ class POIFeatureExtractor(BaseFeatureExtractor):
         poi_gdf = gpd.GeoDataFrame(poi_df, geometry=geometry, crs=self.BASE_CRS)
         
         # [Rule 1 준수] 투영 좌표계로 명시적 변환
-        poi_proj = poi_gdf.to_crs(self.PROJ_CRS)
+        poi_proj = ensure_crs(poi_gdf, self.PROJ_CRS)
         print(f"   -> POI 데이터 투영 완료 (소요시간: {time.time()-t0:.2f}초), 총 상가 수: {len(poi_proj):,}")
         
         poi_proj['category'] = poi_proj.apply(self._categorize_poi, axis=1)
@@ -87,15 +90,22 @@ class POIFeatureExtractor(BaseFeatureExtractor):
         grid_centers.geometry = grid_gdf.centroid
         
         t2 = time.time()
-        print("✂️ POI 다중 링 버퍼(30m, 50m, 100m) sjoin 연산 및 인덱스 병합 시작...")
+        print("✂️ POI 다중 링 버퍼(30m, 50m, 100m) 미리 계산(Pre-calculate) 중...")
         
+        # [성능 최적화] 카테고리 반복문 전에 격자 버퍼를 한 번만 계산하여 캐싱
+        buffer_cache = {}
+        for r in self.BUFFER_RADII:
+            b_gdf = grid_centers.copy()
+            b_gdf.geometry = b_gdf.geometry.buffer(r)
+            buffer_cache[r] = b_gdf
+            
+        print("✂️ sjoin 연산 및 인덱스 병합 시작...")
         for cat, poi_subset in poi_dict.items():
             if len(poi_subset) == 0: continue
                 
             # core_papers.md 근거: U-Curve 비선형성 파악을 위한 3단계 버퍼링
-            for r in [30, 50, 100]:
-                buffer_gdf = grid_centers.copy()
-                buffer_gdf.geometry = buffer_gdf.geometry.buffer(r)
+            for r in self.BUFFER_RADII:
+                buffer_gdf = buffer_cache[r]
                 
                 # [Rule 2 준수] sindex 기반 고속 공간 조인
                 joined = gpd.sjoin(poi_subset, buffer_gdf, predicate='within')
@@ -125,18 +135,10 @@ class FeatureOrchestrator:
         self.region = region
         self.grid_size = grid_size
         self.buffer_size = buffer_size
-        self.safe_region_name = region.lower().replace(" ", "_").replace(",", "")
+        self.safe_region_name = get_safe_region_name(region)
         
-        src_dir = Path(__file__).parent.resolve()
-        self.project_root = src_dir.parent
-        config_path = self.project_root / 'config.yaml'
-        
-        with open(config_path, 'r', encoding='utf-8') as f:
-            self.config = yaml.safe_load(f)
-            
-        self.raw_dir = (self.project_root / self.config['data']['paths']['raw']).resolve()
-        self.processed_dir = (self.project_root / self.config['data']['paths']['processed']).resolve()
-        self.processed_dir.mkdir(parents=True, exist_ok=True)
+        self.config = load_config()
+        self.raw_dir, self.processed_dir = get_data_dirs(self.config)
         
         # OCP 원칙: 새로운 피처가 생기면 이 맵(Map)에 추가하기만 하면 됩니다.
         self.extractor_map = {
@@ -150,8 +152,8 @@ class FeatureOrchestrator:
             raise ValueError(f"🚨 지원하지 않는 피처 타입입니다: {feature_type}")
             
         # 1. 대상 Grid 로드 (예외 처리 포함)
-        grid_filename = f"grid_{self.safe_region_name}_{self.grid_size}m_buf{self.buffer_size}m.gpkg"
-        features_filename = f"features_{self.safe_region_name}_{self.grid_size}m_buf{self.buffer_size}m.gpkg"
+        grid_filename = get_standard_filename("grid", self.region, self.grid_size, self.buffer_size)
+        features_filename = get_standard_filename("features", self.region, self.grid_size, self.buffer_size)
         target_path = self.processed_dir / features_filename
         
         if not target_path.exists():

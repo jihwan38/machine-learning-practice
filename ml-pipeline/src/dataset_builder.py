@@ -4,6 +4,7 @@ import pandas as pd
 import geopandas as gpd
 from sqlalchemy import create_engine, text
 from pathlib import Path
+from src.utils import get_safe_region_name, load_config, get_data_dirs, get_standard_filename, ensure_crs, Timer
 from abc import ABC, abstractmethod
 
 class BaseViewLoader(ABC):
@@ -55,16 +56,10 @@ class DatasetBuilder:
         self.region = region
         self.grid_size = grid_size
         self.buffer_size = buffer_size
-        self.safe_region_name = region.lower().replace(" ", "_").replace(",", "")
+        self.safe_region_name = get_safe_region_name(region)
         
-        src_dir = Path(__file__).parent.resolve()
-        self.project_root = src_dir.parent
-        config_path = self.project_root / 'config.yaml'
-        
-        with open(config_path, 'r', encoding='utf-8') as f:
-            self.config = yaml.safe_load(f)
-            
-        self.processed_dir = (self.project_root / self.config['data']['paths']['processed']).resolve()
+        self.config = load_config()
+        self.raw_dir, self.processed_dir = get_data_dirs(self.config)
         self.PROJ_CRS = self.config['spatial']['projected_crs']
         
         # OCP 원칙: 새로운 View 전략이 생기면 이 맵(Map)에 추가하기만 하면 됩니다.
@@ -90,10 +85,10 @@ class DatasetBuilder:
         print(f"   -> DB 로드 완료: 총 {len(labels_gdf):,}건 (현재 좌표계: {labels_gdf.crs})")
         
         # [Rule 1 준수] 투영 변환
-        labels_gdf = labels_gdf.to_crs(self.PROJ_CRS)
+        labels_gdf = ensure_crs(labels_gdf, self.PROJ_CRS)
         
         # 3. 타겟 Grid 로드
-        features_filename = f"features_{self.safe_region_name}_{self.grid_size}m_buf{self.buffer_size}m.gpkg"
+        features_filename = get_standard_filename("features", self.region, self.grid_size, self.buffer_size)
         target_path = self.processed_dir / features_filename
         
         if not target_path.exists():
@@ -106,8 +101,7 @@ class DatasetBuilder:
 
         # 4. 공간 조인 (Spatial Join)
         print("✂️ 공간 조인(sjoin)을 통한 정답 라벨(Y) 맵핑 시작...")
-        if grid_features.crs != labels_gdf.crs:
-            labels_gdf = labels_gdf.to_crs(grid_features.crs)
+        labels_gdf = ensure_crs(labels_gdf, grid_features.crs)
             
         merged_gdf = gpd.sjoin(grid_features, labels_gdf, how='left', predicate='contains')
         
@@ -126,7 +120,7 @@ class DatasetBuilder:
         print(f"⚖️ 클래스 불균형 비율: {ratio:.4f}%")
 
         # 5. 최종 데이터셋 저장
-        output_filename = f"dataset_{self.safe_region_name}_{self.grid_size}m_buf{self.buffer_size}m_{self.view_type_name}.gpkg"
+        output_filename = get_standard_filename("dataset", self.region, self.grid_size, self.buffer_size, suffix=self.view_type_name)
         output_path = self.processed_dir / output_filename
         print(f"💾 최종 학습 데이터셋 저장 중... -> {output_filename}")
         merged_gdf.to_file(output_path, driver='GPKG', layer='dataset')
