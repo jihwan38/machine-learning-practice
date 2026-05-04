@@ -1,5 +1,6 @@
 import os
 import time
+from src.utils import get_safe_region_name, load_config, get_data_dirs, get_standard_filename, ensure_crs, Timer
 import argparse
 import yaml
 import numpy as np
@@ -14,28 +15,16 @@ def generate_grid(region: str, grid_size: int, buffer_size: int, force_download:
     지정된 크기의 격자망(Grid)을 생성하여 모델 도화지를 마스킹합니다.
     """
     # 1. 경로 및 설정 세팅
-    src_dir = Path(__file__).parent.resolve()
-    project_root = src_dir.parent
-    config_path = project_root / 'config.yaml'
-    
-    with open(config_path, 'r', encoding='utf-8') as f:
-        config = yaml.safe_load(f)
-        
+    config = load_config()
     BASE_CRS = config['spatial']['base_crs']
     PROJ_CRS = config['spatial']['projected_crs']
-    
-    raw_dir = (project_root / config['data']['paths']['raw']).resolve()
-    processed_dir = (project_root / config['data']['paths']['processed']).resolve()
-    
-    # 폴더 안전장치
-    raw_dir.mkdir(parents=True, exist_ok=True)
-    processed_dir.mkdir(parents=True, exist_ok=True)
+    raw_dir, processed_dir = get_data_dirs(config)
     
     print(f"✅ 설정 로드 완료: Region='{region}' | Proj='{PROJ_CRS}' | Grid={grid_size}m | Buffer={buffer_size}m")
     
     # 2. OSM 데이터 가져오기 및 캐싱
     # 파일명을 위해 불필요한 특수문자 제거 후 변환
-    safe_region_name = region.lower().replace(" ", "_").replace(",", "")
+    safe_region_name = get_safe_region_name(region)
     graphml_path = raw_dir / f"network_{safe_region_name}_raw.graphml"
     
     t0 = time.time()
@@ -55,7 +44,7 @@ def generate_grid(region: str, grid_size: int, buffer_size: int, force_download:
     print(f"⏱️ 그래프 준비 완료 (소요시간: {time.time()-t0:.2f}초), 총 엣지: {len(edges)} 개")
     
     # Rule 1: 미터(Meter) 단위 처리를 위해 타겟 좌표계로 강제 투영
-    edges_proj = edges.to_crs(PROJ_CRS)
+    edges_proj = ensure_crs(edges, PROJ_CRS)
     
     # 3. 보행 구역 마스킹 (Buffer)
     print(f"✂️ 도로 중심선 기준 {buffer_size}m 보행 면적 버퍼 연산 중...")
@@ -90,7 +79,7 @@ def generate_grid(region: str, grid_size: int, buffer_size: int, force_download:
     print(f"✅ 마스킹 최적화 처리 성공! (실제 쓰일 데이터셋 크기: {len(grid_masked)} 개)")
     
     # 6. GeoPackage 포맷으로 내보내기 (Rule 4 준수)
-    output_filename = f"grid_{safe_region_name}_{grid_size}m_buf{buffer_size}m.gpkg"
+    output_filename = get_standard_filename("grid", region, grid_size, buffer_size)
     output_path = processed_dir / output_filename
     grid_masked.to_file(output_path, driver='GPKG', layer=f'grid_{grid_size}m')
     print(f"🚀 [완료] 파이프라인 중간 결과물 저장됨 -> {output_path}")

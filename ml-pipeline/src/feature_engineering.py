@@ -4,6 +4,7 @@ import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Point
 from pathlib import Path
+from src.utils import get_safe_region_name, load_config, get_data_dirs, get_standard_filename, ensure_crs, Timer
 from abc import ABC, abstractmethod
 from typing import Dict, Any
 
@@ -15,7 +16,7 @@ class BaseFeatureExtractor(ABC):
     def __init__(self, config: Dict[str, Any], region: str, raw_dir: Path):
         self.config = config
         self.region = region
-        self.safe_region_name = region.lower().replace(" ", "_").replace(",", "")
+        self.safe_region_name = get_safe_region_name(region)
         self.raw_dir = raw_dir
         self.BASE_CRS = config['spatial']['base_crs']
         self.PROJ_CRS = config['spatial']['projected_crs']
@@ -55,7 +56,7 @@ class POIFeatureExtractor(BaseFeatureExtractor):
             parts = [p.strip() for p in self.region.split(',')]
             if len(parts) > 1:
                 parent_region = ", ".join(parts[1:])
-                parent_safe_name = parent_region.lower().replace(" ", "_").replace(",", "")
+                parent_safe_name = get_safe_region_name(parent_region)
                 parent_filename = f"poi_{parent_safe_name}_raw.csv"
                 parent_path = self.raw_dir / parent_filename
                 
@@ -76,7 +77,7 @@ class POIFeatureExtractor(BaseFeatureExtractor):
         poi_gdf = gpd.GeoDataFrame(poi_df, geometry=geometry, crs=self.BASE_CRS)
         
         # [Rule 1 준수] 투영 좌표계로 명시적 변환
-        poi_proj = poi_gdf.to_crs(self.PROJ_CRS)
+        poi_proj = ensure_crs(poi_gdf, self.PROJ_CRS)
         print(f"   -> POI 데이터 투영 완료 (소요시간: {time.time()-t0:.2f}초), 총 상가 수: {len(poi_proj):,}")
         
         poi_proj['category'] = poi_proj.apply(self._categorize_poi, axis=1)
@@ -132,18 +133,10 @@ class FeatureOrchestrator:
         self.region = region
         self.grid_size = grid_size
         self.buffer_size = buffer_size
-        self.safe_region_name = region.lower().replace(" ", "_").replace(",", "")
+        self.safe_region_name = get_safe_region_name(region)
         
-        src_dir = Path(__file__).parent.resolve()
-        self.project_root = src_dir.parent
-        config_path = self.project_root / 'config.yaml'
-        
-        with open(config_path, 'r', encoding='utf-8') as f:
-            self.config = yaml.safe_load(f)
-            
-        self.raw_dir = (self.project_root / self.config['data']['paths']['raw']).resolve()
-        self.processed_dir = (self.project_root / self.config['data']['paths']['processed']).resolve()
-        self.processed_dir.mkdir(parents=True, exist_ok=True)
+        self.config = load_config()
+        self.raw_dir, self.processed_dir = get_data_dirs(self.config)
         
         # OCP 원칙: 새로운 피처가 생기면 이 맵(Map)에 추가하기만 하면 됩니다.
         self.extractor_map = {
@@ -157,8 +150,8 @@ class FeatureOrchestrator:
             raise ValueError(f"🚨 지원하지 않는 피처 타입입니다: {feature_type}")
             
         # 1. 대상 Grid 로드 (예외 처리 포함)
-        grid_filename = f"grid_{self.safe_region_name}_{self.grid_size}m_buf{self.buffer_size}m.gpkg"
-        features_filename = f"features_{self.safe_region_name}_{self.grid_size}m_buf{self.buffer_size}m.gpkg"
+        grid_filename = get_standard_filename("grid", self.region, self.grid_size, self.buffer_size)
+        features_filename = get_standard_filename("features", self.region, self.grid_size, self.buffer_size)
         target_path = self.processed_dir / features_filename
         
         if not target_path.exists():
