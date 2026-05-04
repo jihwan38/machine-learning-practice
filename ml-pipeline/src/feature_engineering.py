@@ -87,15 +87,22 @@ class POIFeatureExtractor(BaseFeatureExtractor):
         grid_centers.geometry = grid_gdf.centroid
         
         t2 = time.time()
-        print("✂️ POI 다중 링 버퍼(30m, 50m, 100m) sjoin 연산 및 인덱스 병합 시작...")
+        print("✂️ POI 다중 링 버퍼(30m, 50m, 100m) 미리 계산(Pre-calculate) 중...")
         
+        # [성능 최적화] 카테고리 반복문 전에 격자 버퍼를 한 번만 계산하여 캐싱
+        buffer_cache = {}
+        for r in [30, 50, 100]:
+            b_gdf = grid_centers.copy()
+            b_gdf.geometry = b_gdf.geometry.buffer(r)
+            buffer_cache[r] = b_gdf
+            
+        print("✂️ sjoin 연산 및 인덱스 병합 시작...")
         for cat, poi_subset in poi_dict.items():
             if len(poi_subset) == 0: continue
                 
             # core_papers.md 근거: U-Curve 비선형성 파악을 위한 3단계 버퍼링
             for r in [30, 50, 100]:
-                buffer_gdf = grid_centers.copy()
-                buffer_gdf.geometry = buffer_gdf.geometry.buffer(r)
+                buffer_gdf = buffer_cache[r]
                 
                 # [Rule 2 준수] sindex 기반 고속 공간 조인
                 joined = gpd.sjoin(poi_subset, buffer_gdf, predicate='within')
