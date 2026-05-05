@@ -61,8 +61,9 @@ class PUBaggingXGBoost:
         rng = np.random.default_rng(self.random_state)
         
         for i in range(self.n_estimators):
-            # Unlabeled(0) 데이터 중 Positive(1) 개수만큼 추출
-            sampled_u_idx: np.ndarray = rng.choice(u_idx, size=len(p_idx), replace=True)
+            # Unlabeled(0) 데이터 중 Positive(1) 개수만큼 비복원(replace=False) 추출
+            # 중복 추출을 막아 10명의 의사가 각기 다른 청정구역(?)을 탐색하도록 다양성을 극대화합니다.
+            sampled_u_idx: np.ndarray = rng.choice(u_idx, size=len(p_idx), replace=False)
             
             # 훈련용 데이터 병합
             train_idx: np.ndarray = np.concatenate([p_idx, sampled_u_idx])
