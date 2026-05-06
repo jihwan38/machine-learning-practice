@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  # 핫스팟 가중치를 적용하여 최적의 플로깅 경로를 추천해주는 Java/GraphHopper 서버
+  route-engine:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: geoai_route_engine
+    ports:
+      - "8989:8989"  # GraphHopper 기본 포트
+    env_file:
+      # AWS RDS 주소 주입을 위한 파일
+      - .env
+    volumes:
+      # 로컬 개발 및 컨테이너 재시작 시 속도 최적화를 위해 GraphHopper 캐시(OSM 변환 데이터)를 유지합니다.
+      - ./graph-cache:/app/graph-cache
+    restart: unless-stopped
+    healthcheck:
+      # 향후 구현될 Spring Boot / Java 서버의 상태 확인 엔드포인트
+      test: ["CMD", "curl", "-f", "http://localhost:8989/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
