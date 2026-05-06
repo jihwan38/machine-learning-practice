@@ -50,6 +50,9 @@ class PUBaggingXGBoost:
         Returns:
             PUBaggingXGBoost: 학습이 완료된 모델 객체 자기 자신 (Method Chaining 지원).
         """
+        if len(X_df) != len(y):
+            raise ValueError(f"데이터 개수 불일치: X는 {len(X_df)}개, y는 {len(y)}개입니다.")
+
         # 추론 시 피처 순서 꼬임을 방지하기 위해 훈련 시점의 컬럼명과 순서를 리스트로 영구 보존
         self.feature_names_ = list(X_df.columns)
         
@@ -57,6 +60,9 @@ class PUBaggingXGBoost:
         p_idx: np.ndarray = np.where(y == 1)[0]
         u_idx: np.ndarray = np.where(y == 0)[0]
         
+        if len(p_idx) == 0:
+            raise ValueError("Positive(핫스팟) 샘플이 단 하나도 존재하지 않아 PU-Learning이 불가능합니다.")
+            
         # 전역 시드 오염을 방지하는 로컬 난수 생성기 (Numpy Best Practice)
         rng = np.random.default_rng(self.random_state)
         
