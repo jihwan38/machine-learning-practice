@@ -26,11 +26,27 @@ spatial:
 DATABASE_URL=postgresql://[아이디]:[비밀번호]@[호스트주소]:5432/[DB명]
 ```
 
-### 🔹 Docker Compose를 이용한 실행
-서버 배포 시 코드를 고칠 필요 없이 도커 명령어 한 줄로 완벽히 격리된 환경에서 실행이 가능합니다.
+### 🔹 Docker Compose를 이용한 실행 (로컬 실험 및 배포)
+서버 배포 시 코드를 고칠 필요 없이 도커 명령어 한 줄로 완벽히 격리된 환경에서 실행이 가능합니다. 특히 다른 개발자의 컴퓨터에서도 환경 세팅 없이 바로 파이프라인을 돌려볼 수 있습니다.
+
+**기본 도움말 확인:**
 ```bash
 docker compose run --rm ml-pipeline uv run main.py --help
 ```
+
+**실제 파이프라인 명령어 도커로 실행하기 (예시):**
+도커 환경에서 파이프라인의 각 단계를 실행하려면 `docker compose run --rm ml-pipeline` 뒤에 기존 로컬 명령어를 그대로 붙여주면 됩니다.
+```bash
+# 데이터 수집
+docker compose run --rm ml-pipeline uv run main.py fetch-raw-data
+
+# 그리드 생성
+docker compose run --rm ml-pipeline uv run main.py add-grid --region "Dong-gu, Gwangju, South Korea"
+
+# 모델 학습
+docker compose run --rm ml-pipeline uv run main.py train-model --region "Dong-gu, Gwangju, South Korea"
+```
+*(결과물인 `.pkl` 모델 파일이나 `.gpkg` 데이터는 도커 볼륨 마운트 설정에 의해 호스트 컴퓨터의 `ml-pipeline/data/` 폴더에 안전하게 영구 저장됩니다!)*
 
 ---
 
