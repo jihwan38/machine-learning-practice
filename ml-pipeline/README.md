@@ -1,70 +1,94 @@
-# GeoAI Plogging ML Pipeline
+# GeoAI Plogging ML Pipeline & Architecture
 
-이 저장소는 공공 공간 데이터와 상권 데이터를 활용하여 쓰레기 투기 공간 분포를 예측하고 최적의 플로깅 경로를 식별하는 머신러닝 파이프라인을 포함하고 있습니다. 이 파이프라인은 지역 기반으로 설계되었으며, 다양한 피처 타입으로 쉽게 확장할 수 있도록 구성되었습니다.
+본 저장소는 공간 데이터(OSM, POI)와 쓰레기 무단투기 정답지(Ground Truth)를 활용하여, 지역 전체의 쓰레기 핫스팟(투기 위험도)을 예측하고 시각화하는 머신러닝 파이프라인(PU-Learning 기반)입니다.
 
-## 1. CLI 사용법
+이 프로젝트는 동구라미 API 등에서 수집한 라벨링 데이터를 바탕으로 작은 지역(예: 동구)에서 모델을 학습시키고, 라벨이 없는 넓은 지역(예: 광주 전체)으로 핫스팟 지도를 확장하는 **공간 전이 학습(Spatial Transfer Learning)**을 지원합니다.
 
-이 파이프라인은 `uv` 환경에서 `main.py`를 통해 실행됩니다.
+## ⚙️ 1. 환경 설정 (`config.yaml`)
 
-### Phase 1: Grid 생성 (`add-grid`)
-대상 지역의 도로망을 추출하고 그 위를 마스킹하는 공간 격자(예: 10m x 10m)를 생성합니다.
+파이프라인을 실행하기 전, `ml-pipeline/config.yaml` 파일에서 대상 지역과 마스킹 설정을 확인해야 합니다.
 
-```bash
-uv run python main.py add-grid --region "Gwangju, South Korea"
+```yaml
+spatial:
+  target_region: "Dong-gu, Gwangju, South Korea"  # 기본 타겟(학습) 지역 설정
+  grid_size_meters: 10                            # 공간 격자의 해상도 (기본 10m)
+  buffer_size_meters: 10                          # 도로 중심선 기준 마스킹 버퍼 반경 (기본 10m)
 ```
-
-**옵션:**
-- `--region`: 대상 지역 이름. 생략할 경우 `config.yaml`의 값을 사용합니다.
-- `--grid-size`: 단일 격자의 크기 (단위: 미터, 기본값: 10).
-- `--buffer`: 도로 중심선을 기준으로 확장할 마스킹 버퍼 반경 (단위: 미터, 기본값: 10).
-- `--force-download`: 로컬 캐시를 무시하고 OSM 도로망 데이터를 다시 다운로드합니다.
-
-### Phase 2: Feature Engineering (`add-features`)
-다중 링 버퍼(Multi-ring buffer) 기반의 공간 피처를 계산하고 앞서 생성된 격자에 추가합니다.
-
-```bash
-uv run python main.py add-features --region "Gwangju, South Korea" --feature-type poi
-```
-
-**옵션:**
-- `--region`: 대상 지역 이름.
-- `--feature-type`: 처리 및 추가할 피처 데이터의 종류 (예: `poi`, `pop`, `cctv`).
-- `--grid-size`: 격자 크기 (기본값: 10).
-- `--buffer`: 버퍼 반경 (기본값: 10).
-
-*(참고: 출력되는 `features_*.gpkg` 파일은 누적(Cumulative) 파일입니다. 새로운 `--feature-type`으로 명령어를 다시 실행하면 기존 파일에 새로운 피처 컬럼이 추가됩니다.)*
+* **팁:** 모델 학습은 `target_region`에 맞춰 진행되지만, 이후 추론 단계 CLI 명령어에서 옵션을 통해 타겟 지역을 동적으로 바꿀 수 있습니다.
 
 ---
 
-## 2. 데이터셋 네이밍 규칙
+## 🚀 2. 로컬 실행 및 도커 배포
 
-CLI가 `--region` 및 `--feature-type` 인자를 기반으로 파일 경로를 동적으로 추적할 수 있도록, **모든 원본 및 가공 데이터 파일은 반드시 아래의 명명 규칙을 엄격히 준수해야 합니다.**
+### 🔹 환경변수 세팅 (.env)
+가장 먼저 `ml-pipeline/.env` 파일을 만들고 DB 주소를 입력합니다. (없을 경우 로컬 템플릿 사용)
+```env
+DATABASE_URL=postgresql://[아이디]:[비밀번호]@[호스트주소]:5432/[DB명]
+```
 
-### 지역명(Region) 문자열 파싱 규칙
-파이프라인이 지역명 문자열을 받을 때, 자동으로 소문자로 변환하고 쉼표(,)를 제거하며 공백을 언더바(_)로 바꿉니다.
-- **입력:** `"Gwangju, South Korea"`
-- **파싱 결과:** `gwangju_south_korea`
-- **입력:** `"Gwangju"`
-- **파싱 결과:** `gwangju`
+### 🔹 Docker Compose를 이용한 실행 (로컬 실험 및 배포)
+서버 배포 시 코드를 고칠 필요 없이 도커 명령어 한 줄로 완벽히 격리된 환경에서 실행이 가능합니다. 특히 다른 개발자의 컴퓨터에서도 환경 세팅 없이 바로 파이프라인을 돌려볼 수 있습니다.
 
-### 원본 데이터 (`data/raw/`)
-새로운 원본 데이터(예: 공공데이터포털에서 다운받은 CSV)를 추가할 때는 `data/raw/` 디렉토리에 정확히 다음 형식으로 이름을 지정하여 넣어야 합니다.
+**기본 도움말 확인:**
+```bash
+docker compose run --rm ml-pipeline uv run main.py --help
+```
 
-**형식:** `[feature_type]_[parsed_region]_raw.[ext]`
+**실제 파이프라인 명령어 도커로 실행하기 (예시):**
+도커 환경에서 파이프라인의 각 단계를 실행하려면 `docker compose run --rm ml-pipeline` 뒤에 기존 로컬 명령어를 그대로 붙여주면 됩니다.
+```bash
+# 데이터 수집
+docker compose run --rm ml-pipeline uv run main.py fetch-raw-data
 
-**예시:**
-- `poi_gwangju_raw.csv` (광주 지역의 상권/POI 데이터)
-- `pop_seoul_raw.csv` (서울 지역의 유동인구 데이터)
-- `cctv_busan_raw.csv` (부산 지역의 CCTV 위치 데이터)
+# 그리드 생성
+docker compose run --rm ml-pipeline uv run main.py add-grid --region "Dong-gu, Gwangju, South Korea"
 
-### 가공 데이터 (`data/processed/`)
-가공된 데이터 파일들은 파이프라인에 의해 자동으로 생성됩니다. 이 파일들의 이름은 수동으로 변경하지 마십시오.
+# 모델 학습
+docker compose run --rm ml-pipeline uv run main.py train-model --region "Dong-gu, Gwangju, South Korea"
+```
+*(결과물인 `.pkl` 모델 파일이나 `.gpkg` 데이터는 도커 볼륨 마운트 설정에 의해 호스트 컴퓨터의 `ml-pipeline/data/` 폴더에 안전하게 영구 저장됩니다!)*
 
-- **네트워크 그래프:** `network_[parsed_region]_raw.graphml`
-- **마스킹 격자:** `grid_[parsed_region]_[grid_size]m_buf[buffer]m.gpkg`
-- **최종 피처 파일:** `features_[parsed_region]_[grid_size]m.gpkg`
+---
 
-**예시:**
-- `network_gwangju_raw.graphml`
-- `grid_gwangju_10m_buf10m.gpkg`
-- `features_gwangju_10m.gpkg`
+## 🗺️ 3. CLI 파이프라인 시나리오 (공간 전이 학습)
+
+아래는 **"광주 동구(Dong-gu)에서 배운 인공지능을 이용해 광주 전체(Gwangju)의 쓰레기 지도를 그리는"** 전체 파이프라인 시나리오입니다. (로컬 실행 기준)
+
+### [Phase 0] 정답 데이터 수집 (ETL)
+외부 API(동구라미 등)에서 최신 쓰레기 신고 데이터를 가져와 PostGIS DB에 적재합니다.
+```bash
+uv run main.py fetch-raw-data
+```
+
+### [Phase 1~3] 동구(학습 지역) 도화지 및 피처 준비
+동구 지역의 10m 격자를 만들고, 상권(POI) 피처를 계산합니다.
+```bash
+uv run main.py add-grid --region "Dong-gu, Gwangju, South Korea"
+uv run main.py add-features --region "Dong-gu, Gwangju, South Korea"
+```
+
+### [Phase 4~5] 동구 기반 모델 학습 (Training)
+DB에서 정답지(is_trash)를 불러와 동구의 격자 피처와 결합한 후, PU-XGBoost 모델을 학습시킵니다.
+```bash
+uv run main.py make-dataset --region "Dong-gu, Gwangju, South Korea"
+uv run main.py train-model --region "Dong-gu, Gwangju, South Korea"
+```
+*(성공 시 `data/models/` 폴더에 `.pkl` 파일이 저장됩니다.)*
+
+### [Phase 6] 광주 전체(타겟 지역) 도화지 및 피처 준비
+이제 추론을 위해 광주 전체 크기의 도화지를 깔고 피처를 붙입니다.
+```bash
+uv run main.py add-grid --region "Gwangju, South Korea"
+uv run main.py add-features --region "Gwangju, South Korea"
+```
+
+### [Phase 7] 핫스팟 추론 및 시각화 (Inference & Mapping)
+동구에서 배운 모델(`--train-region`)을 가져와서 광주 전체(`--target-region`)에 대해 추론(trash_score)하고 고해상도 이미지를 렌더링합니다!
+```bash
+uv run main.py infer-hotspot \
+  --train-region "Dong-gu, Gwangju, South Korea" \
+  --target-region "Gwangju, South Korea"
+
+uv run main.py visualize-hotspot --target-region "Gwangju, South Korea"
+```
+*(최종 결과물인 `result_hotspot_...gpkg` 파일과 히트맵 `.png` 이미지가 `data/processed/`에 안전하게 저장됩니다.)*
