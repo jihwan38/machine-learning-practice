@@ -9,17 +9,17 @@ __pycache__/
 cache/
 
 # Data & Models (Ignore contents but preserve directories)
-data/*
+ml-pipeline/data/*
 ml-pipeline/models/*
 
 # Preserve .gitkeep
-!data/**/.gitkeep
+!ml-pipeline/data/**/.gitkeep
 !ml-pipeline/models/.gitkeep
 
 # GraphHopper & Java
-backend-demo/graph-cache/
-backend-demo/target/
-backend-demo/build/
+route-engine/graph-cache/
+route-engine/target/
+route-engine/build/
 .gradle/
 *.class
 

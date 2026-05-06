@@ -15,9 +15,9 @@ pipeline:
 
 data:
   paths:
-    raw: "../data/raw"         # 원본 데이터 저장 경로
-    processed: "../data/processed" # 그리드 및 결과 저장 경로
-    models: "../data/models"     # pkl 등 모델 저장 경로
+    raw: "./data/raw"         # 원본 데이터 저장 경로
+    processed: "./data/processed" # 그리드 및 결과 저장 경로
+    models: "./data/models"     # pkl 등 모델 저장 경로
 
 model:
   training:
