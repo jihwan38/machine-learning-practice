@@ -46,6 +46,10 @@ class GraphHopperConfigTest {
                 .anyMatch(stmt -> stmt.condition() != null && stmt.condition().contains("MOTORWAY"));
         assertThat(hasMotorwayBlock).isTrue();
 
+        boolean hasFootAccessBlock = baseModel.getPriority().stream()
+                .anyMatch(stmt -> stmt.condition() != null && stmt.condition().contains("foot_access"));
+        assertThat(hasFootAccessBlock).isTrue();
+
 
         ImportRegistry registry = hopper.getImportRegistry();
         assertThat(registry).isNotNull();

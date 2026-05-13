@@ -22,24 +22,24 @@ public class RouteService {
     }
 
     public RouteResult calculateRoute(RouteRequest requestDto) {
-        if (requestDto.getDistance() <= 0) {
+        if (requestDto.distance() <= 0) {
             throw new IllegalArgumentException("Distance must be greater than 0");
         }
-        if (Double.isNaN(requestDto.getLat()) || Double.isNaN(requestDto.getLon())) {
+        if (Double.isNaN(requestDto.lat()) || Double.isNaN(requestDto.lon())) {
             throw new IllegalArgumentException("Coordinates cannot be NaN");
         }
-        if (requestDto.getLat() < -90 || requestDto.getLat() > 90 || requestDto.getLon() < -180 || requestDto.getLon() > 180) {
+        if (requestDto.lat() < -90 || requestDto.lat() > 90 || requestDto.lon() < -180 || requestDto.lon() > 180) {
             throw new IllegalArgumentException("Coordinates are out of bounds");
         }
 
-        CustomModel customModel = customModelBuilder.build(requestDto.getMode());
+        CustomModel customModel = customModelBuilder.build(requestDto.mode());
 
         GHRequest request = new GHRequest()
-                .addPoint(new GHPoint(requestDto.getLat(), requestDto.getLon()))
+                .addPoint(new GHPoint(requestDto.lat(), requestDto.lon()))
                 .setProfile("plogging_foot")
                 .setAlgorithm("round_trip");
         
-        request.getHints().putObject("round_trip.distance", requestDto.getDistance());
+        request.getHints().putObject("round_trip.distance", requestDto.distance());
         request.getHints().putObject("round_trip.seed", (long) (Math.random() * 1000));
         request.getHints().putObject("ch.disable", true);
         request.getHints().putObject(CustomModel.KEY, customModel);

@@ -27,12 +27,13 @@ public class GraphHopperConfig {
         CustomModel footBaseModel = new CustomModel();
         footBaseModel.addToSpeed(com.graphhopper.json.Statement.If("true", com.graphhopper.json.Statement.Op.LIMIT, "5"));
         footBaseModel.addToPriority(com.graphhopper.json.Statement.If("road_class == MOTORWAY || road_class == TRUNK", com.graphhopper.json.Statement.Op.MULTIPLY, "0"));
+        footBaseModel.addToPriority(com.graphhopper.json.Statement.If("foot_access == false", com.graphhopper.json.Statement.Op.MULTIPLY, "0"));
         
         hopper.setProfiles(new Profile("plogging_foot").setCustomModel(footBaseModel));
 
         PloggingTagParser parser = new PloggingTagParser(hotspotRepository);
         
-        hopper.setEncodedValuesString("trash_prob,road_class");
+        hopper.setEncodedValuesString("trash_prob,road_class,foot_access,foot_average_speed");
         hopper.setImportRegistry(new DefaultImportRegistry() {
             @Override
             public ImportUnit createImportUnit(String name) {

@@ -27,11 +27,7 @@ class RouteControllerTest {
     @DisplayName("GET /api/v1/route 호출 시 정상적으로 왕복 경로(Round Trip) 계산 결과를 반환해야 한다.")
     void getRouteTest() throws Exception {
         // given
-        RouteRequest request = new RouteRequest();
-        request.setLat(35.1769);
-        request.setLon(126.9058);
-        request.setDistance(5000);
-        request.setMode("PLOGGING");
+        RouteRequest request = new RouteRequest(35.1769, 126.9058, 5000, "PLOGGING");
 
         String mockEncodedPath = "_p~iF~ps|U_ulLnnqC_mqNvxq`@";
         RouteResult mockResult = new RouteResult(1500.0, 600000L, mockEncodedPath);
@@ -39,10 +35,10 @@ class RouteControllerTest {
 
         // when & then
         mockMvc.perform(get("/api/v1/route")
-                .param("lat", String.valueOf(request.getLat()))
-                .param("lon", String.valueOf(request.getLon()))
-                .param("distance", String.valueOf(request.getDistance()))
-                .param("mode", request.getMode()))
+                .param("lat", String.valueOf(request.lat()))
+                .param("lon", String.valueOf(request.lon()))
+                .param("distance", String.valueOf(request.distance()))
+                .param("mode", request.mode()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.distanceMeter").value(1500.0))
                 .andExpect(jsonPath("$.timeMillis").value(600000L))
