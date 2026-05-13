@@ -17,16 +17,13 @@ def test_categorize_poi():
 
 def test_poi_spatial_join(mocker, dummy_config, dummy_grid_gdf, dummy_poi_df, tmp_path):
     """실제 파일을 읽지 않고, 가짜 데이터(Fixture)를 주입(Mock)하여 버퍼 연산과 카운팅 로직을 검증합니다."""
-    # 1. 의존성 주입을 위한 Mocking
     mocker.patch('pathlib.Path.exists', return_value=True)
     mocker.patch('pandas.read_csv', return_value=dummy_poi_df)
     
     extractor = POIFeatureExtractor(dummy_config, "Test Region", tmp_path)
     
-    # 2. extract 메서드 실행 (sjoin 및 카운팅)
     result_gdf = extractor.extract(dummy_grid_gdf)
     
-    # 3. 결과 검증 (새로운 피처 컬럼들이 추가되었는지 확인)
     expected_columns = [
         'food_count_30m', 'food_count_50m', 'food_count_100m',
         'retail_count_30m', 'retail_count_50m', 'retail_count_100m',
@@ -37,5 +34,4 @@ def test_poi_spatial_join(mocker, dummy_config, dummy_grid_gdf, dummy_poi_df, tm
     for col in expected_columns:
         assert col in result_gdf.columns, f"{col} 피처가 생성되지 않았습니다."
         
-    # 결과가 NaN이 아닌지 확인
     assert not result_gdf['food_count_30m'].isnull().any()
