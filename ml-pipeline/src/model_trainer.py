@@ -26,7 +26,7 @@ class ModelTrainer:
         feature_cols = [col for col in gdf.columns if col not in exclude_cols]
         
         if not feature_cols:
-            raise ValueError(f"학습에 사용할 피처(독립변수)가 데이터셋에 존재하지 않습니다: {self.data_path}")
+            raise ValueError(f"학습에 사용할 독립변수가 데이터셋에 존재하지 않습니다: {self.data_path}")
 
         X = gdf[feature_cols]
         y = gdf['is_trash']

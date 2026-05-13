@@ -22,13 +22,13 @@ def generate_grid(region: str, grid_size: int, buffer_size: int, force_download:
     
     t0 = time.time()
     if graphml_path.exists() and not force_download:
-        print(f"로컬 캐시 발견! [{graphml_path.name}] 파일에서 그래프 데이터를 고속으로 로딩합니다.")
+        print(f"로컬 캐시 발견. [{graphml_path.name}] 파일에서 그래프 데이터를 고속으로 로딩합니다.")
         graph = ox.load_graphml(graphml_path)
     else:
         print(f"[{region}] 도로망 실시간 다운로드 중 (OSM API)... 이 작업은 다소 시간이 소요됩니다.")
         graph = ox.graph_from_place(region, network_type="walk")
         ox.save_graphml(graph, graphml_path)
-        print(f"OSM 다운로드 성공! 원본 그래프 파일 저장(캐싱) 완료: {graphml_path.name}")
+        print(f"OSM 다운로드 완료. 원본 그래프 파일 저장(캐싱) 완료: {graphml_path.name}")
         
     nodes, edges = ox.graph_to_gdfs(graph)
     print(f"그래프 준비 완료 (소요시간: {time.time()-t0:.2f}초), 총 엣지: {len(edges)} 개")
@@ -39,7 +39,7 @@ def generate_grid(region: str, grid_size: int, buffer_size: int, force_download:
     walking_areas = edges_proj.geometry.buffer(buffer_size)
     gdf_walkable = gpd.GeoDataFrame(geometry=walking_areas, crs=PROJ_CRS).reset_index(drop=True)
     
-    print(f"{grid_size}m 정방형 격자망(Grid) 기본 배열 도화지 생성 중...")
+    print(f"{grid_size}m 정방형 격자망 기본 배열 도화지 생성 중...")
     minx, miny, maxx, maxy = edges_proj.total_bounds
     minx -= buffer_size * 2
     miny -= buffer_size * 2
@@ -60,10 +60,10 @@ def generate_grid(region: str, grid_size: int, buffer_size: int, force_download:
     grid_masked = grid_masked.drop(columns=['index_right']).reset_index(drop=True)
     grid_masked['grid_id'] = grid_masked.index.astype(str)
     
-    print(f"마스킹 최적화 처리 성공! (실제 쓰일 데이터셋 크기: {len(grid_masked)} 개)")
+    print(f"마스킹 최적화 처리 완료. (실제 쓰일 데이터셋 크기: {len(grid_masked)} 개)")
     
     output_filename = get_standard_filename("grid", region, grid_size, buffer_size)
     output_path = processed_dir / output_filename
     grid_masked.to_file(output_path, driver='GPKG', layer=f'grid_{grid_size}m')
-    print(f"🚀 [완료] 파이프라인 중간 결과물 저장됨 -> {output_path}")
+    print(f"파이프라인 중간 결과물 저장됨 -> {output_path}")
 
