@@ -39,3 +39,7 @@ out/
 ### GraphHopper ###
 data/
 target/
+graph-cache/
+map-data/
+*.class
+.env

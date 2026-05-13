@@ -1,11 +1,6 @@
 
 .env
-# GraphHopper & Java
-route-engine/graph-cache/
-route-engine/target/
-route-engine/build/
-.gradle/
-*.class
+
 
 # macOS / Windows
 .DS_Store
