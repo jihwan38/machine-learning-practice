@@ -38,6 +38,15 @@ dependencies {
 	testAnnotationProcessor 'org.projectlombok:lombok'
 }
 
+dependencyManagement {
+	dependencies {
+		dependency 'com.fasterxml.jackson.core:jackson-databind:2.14.2'
+		dependency 'com.fasterxml.jackson.core:jackson-core:2.14.2'
+		dependency 'com.fasterxml.jackson.core:jackson-annotations:2.14.2'
+	}
+}
+
+
 tasks.named('test') {
 	useJUnitPlatform()
 }

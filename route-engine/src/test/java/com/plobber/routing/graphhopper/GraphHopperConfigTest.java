@@ -26,7 +26,7 @@ class GraphHopperConfigTest {
         GraphHopperConfig config = new GraphHopperConfig();
         
         // when & then
-        GraphHopper hopper = config.graphHopper(hotspotRepository, "dummy.osm.pbf", "target/dummy-cache");
+        GraphHopper hopper = config.graphHopper(hotspotRepository, "dummy.osm.pbf", "target/dummy-cache", false);
         
         assertThat(hopper).isNotNull();
         assertThat(hopper.getGraphHopperLocation()).isEqualTo("target/dummy-cache");

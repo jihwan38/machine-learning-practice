@@ -16,8 +16,9 @@ public class GraphHopperConfig {
     @Bean
     public GraphHopper graphHopper(
             HotspotRepository hotspotRepository,
-            @Value("${graphhopper.datareader.file:data/seoul.osm.pbf}") String osmFilePath,
-            @Value("${graphhopper.graph.location:target/routing-graph-cache}") String graphCacheLocation
+            @Value("${graphhopper.datareader.file:data/gwangju.osm.pbf}") String osmFilePath,
+            @Value("${graphhopper.graph.location:target/gwangju-routing-graph-cache}") String graphCacheLocation,
+            @Value("${graphhopper.init:true}") boolean init
     ) {
         GraphHopper hopper = new GraphHopper();
         hopper.setOSMFile(osmFilePath);
@@ -31,7 +32,7 @@ public class GraphHopperConfig {
 
         PloggingTagParser parser = new PloggingTagParser(hotspotRepository);
         
-        hopper.setEncodedValuesString("trash_prob");
+        hopper.setEncodedValuesString("trash_prob,road_class");
         hopper.setImportRegistry(new DefaultImportRegistry() {
             @Override
             public ImportUnit createImportUnit(String name) {
@@ -44,6 +45,9 @@ public class GraphHopperConfig {
                 return super.createImportUnit(name);
             }
         });
+        if (init) {
+            hopper.importOrLoad();
+        }
         
         return hopper;
     }
