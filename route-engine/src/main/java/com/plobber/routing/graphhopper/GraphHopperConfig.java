@@ -22,8 +22,12 @@ public class GraphHopperConfig {
         GraphHopper hopper = new GraphHopper();
         hopper.setOSMFile(osmFilePath);
         hopper.setGraphHopperLocation(graphCacheLocation);
+
+        CustomModel footBaseModel = new CustomModel();
+        footBaseModel.addToSpeed(com.graphhopper.json.Statement.If("true", com.graphhopper.json.Statement.Op.LIMIT, "5"));
+        footBaseModel.addToPriority(com.graphhopper.json.Statement.If("road_class == MOTORWAY || road_class == TRUNK", com.graphhopper.json.Statement.Op.MULTIPLY, "0"));
         
-        hopper.setProfiles(new Profile("plogging_foot").setCustomModel(new CustomModel()));
+        hopper.setProfiles(new Profile("plogging_foot").setCustomModel(footBaseModel));
 
         PloggingTagParser parser = new PloggingTagParser(hotspotRepository);
         

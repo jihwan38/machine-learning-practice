@@ -1,6 +1,7 @@
 package com.plobber.routing.graphhopper;
 
 import com.graphhopper.GraphHopper;
+import com.graphhopper.util.CustomModel;
 import com.plobber.routing.repository.HotspotRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,6 +33,19 @@ class GraphHopperConfigTest {
         assertThat(hopper.getProfiles()).hasSize(1);
         assertThat(hopper.getProfiles().get(0).getName()).isEqualTo("plogging_foot");
         
+        CustomModel baseModel = hopper.getProfiles().get(0).getCustomModel();
+        assertThat(baseModel).isNotNull();
+        assertThat(baseModel.getSpeed()).isNotEmpty();
+        assertThat(baseModel.getPriority()).isNotEmpty();
+
+        boolean hasWalkingSpeed = baseModel.getSpeed().stream()
+                .anyMatch(stmt -> stmt.getCondition() != null && stmt.getCondition().contains("true"));
+        assertThat(hasWalkingSpeed).isTrue();
+
+        boolean hasMotorwayBlock = baseModel.getPriority().stream()
+                .anyMatch(stmt -> stmt.getCondition() != null && stmt.getCondition().contains("MOTORWAY"));
+        assertThat(hasMotorwayBlock).isTrue();
+
 
         ImportRegistry registry = hopper.getImportRegistry();
         assertThat(registry).isNotNull();
